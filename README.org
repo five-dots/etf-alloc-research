@@ -22,7 +22,17 @@ cov_fcsts <- e$cov_fcsts %>%
 
 * 利用方法
 
+- =$y=f(x)$=
 $y=f(x)$
+
+- =$$ y=f(x) $$=
+$$ y=f(x) $$
+
+- =\[ y=f(x) \]=
+\[ y=f(x) \]
+
+- =\(y=f(x) \)=
+\( y=f(x) \)
 
 * Functions
 
