@@ -48,6 +48,13 @@ y=x^2-2x+1
 
 #+html: <img src="https://latex.codecogs.com/gif.latex?\int_a^bf(x)dx" />
 
+#+html: <img src="https://latex.codecogs.com/gif.latex?\dpi{300}&space;\huge&space;y=f(x)" />
+
+#+CAPTION: A black cat stalking a spider
+#+ATTR_HTML: :alt cat/spider image :title Action! :align right+
+https://latex.codecogs.com/gif.latex?\dpi{300}&space;\huge&space;y=f(x)
+
+
 * Functions
 
 #+begin_src R :results silent
