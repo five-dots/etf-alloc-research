@@ -1,20 +1,7 @@
 #+STARTUP: folded indent inlineimages latexpreview
-#+PROPERTY: header-args:R :results output :session *R:min_var* :width 560 :height 420
+#+PROPERTY: header-args:R :results output :session *R:etf-alloc* :width 560 :height 420
 
-* TODO [0/4]
-** TODO Regime を盛り込む
-** TODO lookback period を恣意的に決めない方法
-- Half Life
-  https://gestaltu.com/2014/03/half-life-of-optimal-lookback-horizon.html/
-  https://seekingalpha.com/article/4043600-testing-dynamic-lookback-period-simple-momentum-trading-model
-
-- Regime
-
-** TODO 現実的な手数料率の計算
-** TODO いろいろなパフォーマンス指標
-- CAPM
-
-* Load Libraries and Data
+* 米国 ETF を利用した最適ポートフォリオの研究ノート
 
 #+begin_src R :results silent
 infra_path <- glue::glue("{.dropbox}/memo/strategy/etf_gmv_alloc/infra.R")
@@ -32,6 +19,10 @@ r_xts <- e$r$xts$c2c
 cov_fcsts <- e$cov_fcsts %>%
   filter(type == !!type, lookback == !!lookback)
 #+end_src
+
+* 利用方法
+
+$y=f(x)$
 
 * Functions
 
@@ -325,3 +316,15 @@ There were 50 or more warnings (use warnings() to see the first 50)
 - [[https://www.r-bloggers.com/introduction-to-asset-allocation/][Introduction to Asset Allocation@R-bloggers]]
 
 - [[https://stackoverflow.com/questions/34636402/using-covariance-matrix-for-portfolio-optimization-in-r][Using Covariance matrix for Portfolio Optimization in R@stackoverflow]]
+* TODO [0/4]
+** TODO Regime を盛り込む
+** TODO lookback period を恣意的に決めない方法
+- Half Life
+  https://gestaltu.com/2014/03/half-life-of-optimal-lookback-horizon.html/
+  https://seekingalpha.com/article/4043600-testing-dynamic-lookback-period-simple-momentum-trading-model
+
+- Regime
+
+** TODO 現実的な手数料率の計算
+** TODO いろいろなパフォーマンス指標
+- CAPM
