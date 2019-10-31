@@ -22,6 +22,7 @@ cov_fcsts <- e$cov_fcsts %>%
 
 * 利用方法
 
+#+begin_comment
 - =$y=f(x)$=
 $y=f(x)$
 
@@ -43,11 +44,9 @@ y=x^2-2x+1
 \end{equation}
 
 [[https://latex.codecogs.com/gif.latex?\int_a^bf(x)dx]]
+#+end_comment
 
 #+html: <img src="https://latex.codecogs.com/gif.latex?\int_a^bf(x)dx" />
-
-$$ \begin{eqnarray} 4a &=& ((a+a)+a)+a \ &=& (a+a)+(a+a) \end{eqnarray} $$
-
 
 * Functions
 
