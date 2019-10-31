@@ -44,7 +44,7 @@ y=x^2-2x+1
 
 [[https://latex.codecogs.com/gif.latex?\int_a^bf(x)dx]]
 
-<img src="https://latex.codecogs.com/gif.latex?\int_a^bf(x)dx" />
+#+html: <img src="https://latex.codecogs.com/gif.latex?\int_a^bf(x)dx" />
 
 $$ \begin{eqnarray} 4a &=& ((a+a)+a)+a \ &=& (a+a)+(a+a) \end{eqnarray} $$
 
