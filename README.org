@@ -1,0 +1,327 @@
+#+STARTUP: folded indent inlineimages latexpreview
+#+PROPERTY: header-args:R :results output :session *R:min_var* :width 560 :height 420
+
+* TODO [0/4]
+** TODO Regime を盛り込む
+** TODO lookback period を恣意的に決めない方法
+- Half Life
+  https://gestaltu.com/2014/03/half-life-of-optimal-lookback-horizon.html/
+  https://seekingalpha.com/article/4043600-testing-dynamic-lookback-period-simple-momentum-trading-model
+
+- Regime
+
+** TODO 現実的な手数料率の計算
+** TODO いろいろなパフォーマンス指標
+- CAPM
+
+* Load Libraries and Data
+
+#+begin_src R :results silent
+infra_path <- glue::glue("{.dropbox}/memo/strategy/etf_gmv_alloc/infra.R")
+source(infra_path)
+#+end_src
+
+#+begin_src R :results silent
+universe  <- e$universe
+type <- "c2c_log"
+lookback <- 500
+
+r <- e$r$df$c2c
+r_xts <- e$r$xts$c2c
+
+cov_fcsts <- e$cov_fcsts %>%
+  filter(type == !!type, lookback == !!lookback)
+#+end_src
+
+* Functions
+
+#+begin_src R :results silent
+get_weights <- function(data, model, universe, rebalance, control) {
+  weights <- map_dfr(1:nrow(data), function(idx) {
+    if ((idx - 1) %% rebalance != 0) return(NULL)
+    date <- data[idx, ]$date
+    cov  <- data[idx, ][[model]][[1]][universe, universe]
+    mean <- rep(0, length(universe))
+    w <- optimalPortfolio(cov, mean, control = control) %>%
+      set_names(universe) %>%
+      t() %>%
+      data.frame()
+    bind_cols(data.frame(date = date), w)
+  })
+  all_dates <- e$r[["df"]][["c2c"]][, "date", drop = FALSE]
+  left_join(all_dates, weights, by = "date") %>%
+    mutate_at(vars(-date), lag) %>%
+    fill(-date, .direction = "down") %>%
+    filter(complete.cases(.))
+}
+
+calc_perf <- function(weight, ret) {
+  symbols <- colnames(weight)[-1]
+  start_date <- min(weight$date)
+  r <- ret %>%
+    filter(date >= start_date) %>%
+    select(!!symbols)
+  w <- weight %>%
+    select(-date)
+  p <- r * w
+  t <- rowSums(p)
+  bind_cols(data.frame(Date = weight$date),
+            p,
+            data.frame(Total = t))
+}
+
+plot_weight <- function(weight) {
+  weight %>%
+    gather(key = "Asset", value = "Weight", -date) %>%
+    ggplot(aes(x = date, y = Weight, fill = Asset)) +
+    geom_area(color = "black", size = 0.1)
+}
+
+mean_weight <- function(weight) {
+  weight %>%
+    gather(key = "symbol", value = "weight", -date) %>%
+    group_by(symbol) %>%
+    summarise(avg_weight = percent(mean(weight)))
+}
+#+end_src
+
+* Universe
+** Chart
+*** All Period
+
+#+begin_src R :results graphics :file (get-babel-file) :width 680 :height 680
+charts.PerformanceSummary(r_xts)
+#+end_src
+
+#+RESULTS:
+[[file:/home/shun/Dropbox/memo/img/babel/fig-W0edTV.png]]
+
+*** 2010 -
+
+#+begin_src R :results graphics :file (get-babel-file) :width 680 :height 680
+charts.PerformanceSummary(r_xts["2010::"])
+#+end_src
+
+#+RESULTS:
+[[file:/home/shun/Dropbox/memo/img/babel/fig-MK37mY.png]]
+
+** Performance Summary
+*** All Period
+
+#+begin_src R :colnames yes
+perf_summary(r_xts)
+#+end_src
+
+#+RESULTS:
+:   Symbol Sharpe Avg_Ret Cum_Ret StdDev  MaxDD
+: 1    QQQ   0.62  12.53% 426.59% 20.35% 53.41%
+: 2    VNQ   0.25   7.75% 186.03% 31.15% 72.91%
+: 3    TLT   0.51   6.94% 156.97% 13.67% 26.59%
+: 4    GLD   0.49   9.09% 240.38% 18.54% 45.56%
+
+*** 2010 -
+
+#+begin_src R :colnames yes
+perf_summary(r_xts["2010::"])
+#+end_src
+
+#+RESULTS:
+:   Symbol Sharpe Avg_Ret Cum_Ret StdDev  MaxDD
+: 1    QQQ   0.96  16.79% 347.51% 17.42% 22.79%
+: 2    VNQ   0.68  12.23% 204.60% 18.07% 22.63%
+: 3    TLT   0.62   8.42% 118.32% 13.69% 20.48%
+: 4    GLD   0.21   3.22%  35.82% 15.64% 45.56%
+
+** Correlation
+
+#+begin_src R :results graphics :file (get-babel-file) :width 680 :height 680
+ggpairs(select(r, -date))
+#+end_src
+
+#+RESULTS:
+[[file:/home/shun/Dropbox/memo/img/babel/fig-D8JIX7.png]]
+
+* Portfolio Performance
+** Calc All Models
+
+- Long-Only
+- Rebalance / 4 weeks
+#+begin_src R :results silent
+models <- colnames(cov_fcsts)[4:7]
+control <- list(type = "minvol", constraint = "lo")
+rebalance <- 4
+
+all_models <- map(models, function(model) {
+  w <- get_weights(cov_fcsts, model, universe, rebalance, control)
+  p <- calc_perf(w, r)
+  list(weight = w, perf = p)
+}) %>% set_names(models)
+
+perfs <- map(all_models, ~ select(.x$perf, Date, Total)) %>%
+  reduce(left_join, by = "Date") %>%
+  set_names(c("Date", "Hist", "CCC", "DCC", "DECO")) %>%
+  tk_xts(-Date, Date)
+#+end_src
+
+** Performance
+
+#+begin_src R :results graphics :file (get-babel-file) :width 680 :height 680
+charts.PerformanceSummary(perfs)
+#+end_src
+
+#+RESULTS:
+[[file:/home/shun/Dropbox/memo/img/babel/fig-3zEWdr.png]]
+
+** Allocation
+*** Plot
+**** Hist
+
+#+begin_src R :results graphics :file (get-babel-file)
+plot_weight(all_models[["hist"]]$weight)
+#+end_src
+
+#+RESULTS:
+[[file:/home/shun/Dropbox/memo/img/babel/fig-YKJBY7.png]]
+
+**** CCC
+
+#+begin_src R :results graphics :file (get-babel-file)
+plot_weight(all_models[["ccc"]]$weight)
+#+end_src
+
+#+RESULTS:
+[[file:/home/shun/Dropbox/memo/img/babel/fig-V2Peab.png]]
+
+**** DCC
+
+#+begin_src R :results graphics :file (get-babel-file)
+plot_weight(all_models[["dcc"]]$weight)
+#+end_src
+
+#+RESULTS:
+[[file:/home/shun/Dropbox/memo/img/babel/fig-5TfcaL.png]]
+
+**** DECO
+
+#+begin_src R :results graphics :file (get-babel-file)
+plot_weight(all_models[["deco"]]$weight)
+#+end_src
+
+#+RESULTS:
+[[file:/home/shun/Dropbox/memo/img/babel/fig-fZws7S.png]]
+
+*** Average
+
+#+begin_src R
+map(models, ~ mean_weight(all_models[[.x]]$weight)) %>%
+reduce(left_join, by = "symbol") %>%
+set_names(c("symbol", models))
+#+end_src
+
+#+RESULTS:
+#+begin_example
+
+# A tibble: 4 x 5
+  symbol hist       ccc        dcc        deco
+  <
+ <
+<
+<
+<formttbl>
+1 GLD    17.05%     19.27%     19.22%     24.79%
+2 QQQ    30.59%     32.57%     31.78%     24.62%
+3 TLT    48.28%     40.90%     40.38%     33.40%
+4 VNQ    4.08%      7.25%      8.62%      17.19%
+#+end_example
+
+** Performance Summary
+
+#+begin_src R
+perf_summary(perfs)
+#+end_src
+
+#+RESULTS:
+:   Symbol Sharpe Avg_Ret Cum_Ret StdDev  MaxDD
+: 1   Hist   1.33  11.38% 267.88%  8.53% 12.22%
+: 2    CCC   1.49  12.79% 328.32%  8.61% 10.96%
+: 3    DCC   1.45  12.52% 316.21%  8.62% 11.38%
+: 4   DECO   1.27  11.72% 281.87%  9.26% 12.08%
+
+** Performance Summary (Annual)
+*** CCC
+
+#+begin_src R
+ccc_perf <- perfs[, "CCC"]
+years <- as.character(unique(year(index(perfs))))
+map_dfr(years, function(year) {
+  a_perf <- ccc_perf[year]
+  perf_summary(a_perf) %>%
+    mutate(Year = year) %>%
+    select(Year, everything(), -Symbol)
+}) %>%
+  mutate_at(vars(-Year, -Sharpe), percent)
+#+end_src
+
+#+RESULTS:
+#+begin_example
+
+   Year Sharpe Avg_Ret Cum_Ret StdDev  MaxDD
+1  2007   3.76  28.68%  11.41%  7.62%  3.93%
+2  2008   1.27  14.13%  14.19% 11.09% 10.96%
+3  2009   0.67   7.61%   7.61% 11.42%  9.84%
+4  2010   1.86  17.13%  17.13%  9.21%  4.15%
+5  2011   2.49  24.53%  24.53%  9.84%  3.92%
+6  2012   2.02  12.93%  12.82%  6.40%  3.67%
+7  2013   0.35   3.02%   3.02%  8.52%  8.83%
+8  2014   2.65  16.69%  16.69%  6.29%  3.23%
+9  2015   0.07   0.63%   0.63%  8.79%  8.59%
+10 2016   0.96   7.58%   7.58%  7.93%  9.70%
+11 2017   3.25  20.73%  20.64%  6.37%  3.93%
+12 2018  -0.10  -0.81%  -0.81%  8.37%  7.37%
+13 2019   5.02  34.64%  22.08%  6.90%  1.67%
+There were 50 or more warnings (use warnings() to see the first 50)
+#+end_example
+
+*** DCC
+
+#+begin_src R
+dcc_perf <- perfs[, "DCC"]
+years <- as.character(unique(year(index(perfs))))
+map_dfr(years, function(year) {
+  a_perf <- dcc_perf[year]
+  perf_summary(a_perf) %>%
+    mutate(Year = year) %>%
+    select(Year, everything(), -Symbol)
+}) %>%
+  mutate_at(vars(-Year, -Sharpe), percent)
+#+end_src
+
+#+RESULTS:
+#+begin_example
+
+   Year Sharpe Avg_Ret Cum_Ret StdDev  MaxDD
+1  2007   3.68  27.74%  11.06%  7.53%  3.87%
+2  2008   1.20  13.57%  13.63% 11.35% 11.38%
+3  2009   0.62   7.10%   7.10% 11.39%  9.78%
+4  2010   1.79  16.67%  16.67%  9.34%  4.19%
+5  2011   2.63  25.45%  25.45%  9.66%  3.67%
+6  2012   2.07  13.18%  13.07%  6.36%  3.88%
+7  2013   0.21   1.83%   1.83%  8.54%  8.51%
+8  2014   2.50  15.86%  15.86%  6.35%  3.35%
+9  2015   0.07   0.61%   0.61%  8.82%  8.73%
+10 2016   0.88   7.02%   7.02%  7.95%  9.97%
+11 2017   3.21  20.26%  20.17%  6.32%  3.83%
+12 2018  -0.09  -0.72%  -0.72%  8.24%  7.34%
+13 2019   5.20  35.79%  22.77%  6.88%  1.58%
+There were 50 or more warnings (use warnings() to see the first 50)
+#+end_example
+* Reference
+
+- [[http://osashimix.hatenablog.com/entry/2019/02/17/201742][【仕事関連】Asset Allocation Model を R で組んでみた。@東京の投資顧問会社で働く社会人が研究に没頭するブログ]]
+- [[http://grg.hatenablog.com/entry/2017/03/12/233826][S&P500と日経225の時系列分析（DCCモデル・多変量GARCH）@GRGと金融工学・統計解析]]
+- [[http://grg.hatenablog.com/entry/2017/03/13/101234][コピュラとは（時系列分析・DCDモデルの前準備として）@GRGと金融工学・統計解析]]
+- [[http://grg.hatenablog.com/entry/2017/03/19/001059][S&P500と日経225の時系列分析（コピュラ ＆ DCDモデル）@GRGと金融工学・統計解析]]
+
+- [[https://www.r-bloggers.com/introduction-to-asset-allocation/][Introduction to Asset Allocation@R-bloggers]]
+
+- [[https://stackoverflow.com/questions/34636402/using-covariance-matrix-for-portfolio-optimization-in-r][Using Covariance matrix for Portfolio Optimization in R@stackoverflow]]
