@@ -1,26 +1,15 @@
 #+STARTUP: folded indent inlineimages latexpreview
-#+PROPERTY: header-args:R :results output :session *R:etf-alloc* :width 560 :height 420
+#+PROPERTY: header-args:R :results output :session *R:etf-alloc* :width 640 :height 480
 
 * 米国 ETF を利用した最適ポートフォリオの研究ノート
 
-#+begin_src R :results silent
-infra_path <- glue::glue("{.dropbox}/memo/strategy/etf_gmv_alloc/infra.R")
-source(infra_path)
+#+begin_src R :results silent :exports none
+library("ProjectTemplate")
+setwd(here::here())
+load.project()
 #+end_src
 
-#+begin_src R :results silent
-universe  <- e$universe
-type <- "c2c_log"
-lookback <- 500
-
-r <- e$r$df$c2c
-r_xts <- e$r$xts$c2c
-
-cov_fcsts <- e$cov_fcsts %>%
-  filter(type == !!type, lookback == !!lookback)
-#+end_src
-
-* 利用方法
+** 利用方法
 
 #+begin_comment
 - =$y=f(x)$=
@@ -50,66 +39,9 @@ y=x^2-2x+1
 
 #+html: <img src="https://latex.codecogs.com/gif.latex?\dpi{300}&space;\huge&space;y=f(x)" />
 
-#+CAPTION: A black cat stalking a spider
-#+ATTR_HTML: :alt cat/spider image :title Action! :align right+
-https://latex.codecogs.com/gif.latex?\dpi{300}&space;\huge&space;y=f(x)
-
-
-* Functions
-
-#+begin_src R :results silent
-get_weights <- function(data, model, universe, rebalance, control) {
-  weights <- map_dfr(1:nrow(data), function(idx) {
-    if ((idx - 1) %% rebalance != 0) return(NULL)
-    date <- data[idx, ]$date
-    cov  <- data[idx, ][[model]][[1]][universe, universe]
-    mean <- rep(0, length(universe))
-    w <- optimalPortfolio(cov, mean, control = control) %>%
-      set_names(universe) %>%
-      t() %>%
-      data.frame()
-    bind_cols(data.frame(date = date), w)
-  })
-  all_dates <- e$r[["df"]][["c2c"]][, "date", drop = FALSE]
-  left_join(all_dates, weights, by = "date") %>%
-    mutate_at(vars(-date), lag) %>%
-    fill(-date, .direction = "down") %>%
-    filter(complete.cases(.))
-}
-
-calc_perf <- function(weight, ret) {
-  symbols <- colnames(weight)[-1]
-  start_date <- min(weight$date)
-  r <- ret %>%
-    filter(date >= start_date) %>%
-    select(!!symbols)
-  w <- weight %>%
-    select(-date)
-  p <- r * w
-  t <- rowSums(p)
-  bind_cols(data.frame(Date = weight$date),
-            p,
-            data.frame(Total = t))
-}
-
-plot_weight <- function(weight) {
-  weight %>%
-    gather(key = "Asset", value = "Weight", -date) %>%
-    ggplot(aes(x = date, y = Weight, fill = Asset)) +
-    geom_area(color = "black", size = 0.1)
-}
-
-mean_weight <- function(weight) {
-  weight %>%
-    gather(key = "symbol", value = "weight", -date) %>%
-    group_by(symbol) %>%
-    summarise(avg_weight = percent(mean(weight)))
-}
-#+end_src
-
-* Universe
-** Chart
-*** All Period
+** Universe
+*** Chart
+**** All Period
 
 #+begin_src R :results graphics :file (get-babel-file) :width 680 :height 680
 charts.PerformanceSummary(r_xts)
@@ -118,7 +50,7 @@ charts.PerformanceSummary(r_xts)
 #+RESULTS:
 [[file:/home/shun/Dropbox/memo/img/babel/fig-W0edTV.png]]
 
-*** 2010 -
+**** 2010 -
 
 #+begin_src R :results graphics :file (get-babel-file) :width 680 :height 680
 charts.PerformanceSummary(r_xts["2010::"])
@@ -127,8 +59,8 @@ charts.PerformanceSummary(r_xts["2010::"])
 #+RESULTS:
 [[file:/home/shun/Dropbox/memo/img/babel/fig-MK37mY.png]]
 
-** Performance Summary
-*** All Period
+*** Performance Summary
+**** All Period
 
 #+begin_src R :colnames yes
 perf_summary(r_xts)
@@ -141,7 +73,7 @@ perf_summary(r_xts)
 : 3    TLT   0.51   6.94% 156.97% 13.67% 26.59%
 : 4    GLD   0.49   9.09% 240.38% 18.54% 45.56%
 
-*** 2010 -
+**** 2010 -
 
 #+begin_src R :colnames yes
 perf_summary(r_xts["2010::"])
@@ -154,7 +86,7 @@ perf_summary(r_xts["2010::"])
 : 3    TLT   0.62   8.42% 118.32% 13.69% 20.48%
 : 4    GLD   0.21   3.22%  35.82% 15.64% 45.56%
 
-** Correlation
+*** Correlation
 
 #+begin_src R :results graphics :file (get-babel-file) :width 680 :height 680
 ggpairs(select(r, -date))
@@ -163,8 +95,8 @@ ggpairs(select(r, -date))
 #+RESULTS:
 [[file:/home/shun/Dropbox/memo/img/babel/fig-D8JIX7.png]]
 
-* Portfolio Performance
-** Calc All Models
+** Portfolio Performance
+*** Calc All Models
 
 - Long-Only
 - Rebalance / 4 weeks
@@ -185,7 +117,7 @@ perfs <- map(all_models, ~ select(.x$perf, Date, Total)) %>%
   tk_xts(-Date, Date)
 #+end_src
 
-** Performance
+*** Performance
 
 #+begin_src R :results graphics :file (get-babel-file) :width 680 :height 680
 charts.PerformanceSummary(perfs)
@@ -194,9 +126,9 @@ charts.PerformanceSummary(perfs)
 #+RESULTS:
 [[file:/home/shun/Dropbox/memo/img/babel/fig-3zEWdr.png]]
 
-** Allocation
-*** Plot
-**** Hist
+*** Allocation
+**** Plot
+***** Hist
 
 #+begin_src R :results graphics :file (get-babel-file)
 plot_weight(all_models[["hist"]]$weight)
@@ -205,7 +137,7 @@ plot_weight(all_models[["hist"]]$weight)
 #+RESULTS:
 [[file:/home/shun/Dropbox/memo/img/babel/fig-YKJBY7.png]]
 
-**** CCC
+***** CCC
 
 #+begin_src R :results graphics :file (get-babel-file)
 plot_weight(all_models[["ccc"]]$weight)
@@ -214,7 +146,7 @@ plot_weight(all_models[["ccc"]]$weight)
 #+RESULTS:
 [[file:/home/shun/Dropbox/memo/img/babel/fig-V2Peab.png]]
 
-**** DCC
+***** DCC
 
 #+begin_src R :results graphics :file (get-babel-file)
 plot_weight(all_models[["dcc"]]$weight)
@@ -223,7 +155,7 @@ plot_weight(all_models[["dcc"]]$weight)
 #+RESULTS:
 [[file:/home/shun/Dropbox/memo/img/babel/fig-5TfcaL.png]]
 
-**** DECO
+***** DECO
 
 #+begin_src R :results graphics :file (get-babel-file)
 plot_weight(all_models[["deco"]]$weight)
@@ -232,7 +164,7 @@ plot_weight(all_models[["deco"]]$weight)
 #+RESULTS:
 [[file:/home/shun/Dropbox/memo/img/babel/fig-fZws7S.png]]
 
-*** Average
+**** Average
 
 #+begin_src R
 map(models, ~ mean_weight(all_models[[.x]]$weight)) %>%
@@ -256,7 +188,7 @@ set_names(c("symbol", models))
 4 VNQ    4.08%      7.25%      8.62%      17.19%
 #+end_example
 
-** Performance Summary
+*** Performance Summary
 
 #+begin_src R
 perf_summary(perfs)
@@ -269,8 +201,8 @@ perf_summary(perfs)
 : 3    DCC   1.45  12.52% 316.21%  8.62% 11.38%
 : 4   DECO   1.27  11.72% 281.87%  9.26% 12.08%
 
-** Performance Summary (Annual)
-*** CCC
+*** Performance Summary (Annual)
+**** CCC
 
 #+begin_src R
 ccc_perf <- perfs[, "CCC"]
@@ -304,7 +236,7 @@ map_dfr(years, function(year) {
 There were 50 or more warnings (use warnings() to see the first 50)
 #+end_example
 
-*** DCC
+**** DCC
 
 #+begin_src R
 dcc_perf <- perfs[, "DCC"]
@@ -337,25 +269,24 @@ map_dfr(years, function(year) {
 13 2019   5.20  35.79%  22.77%  6.88%  1.58%
 There were 50 or more warnings (use warnings() to see the first 50)
 #+end_example
-* Reference
+** Reference
 
 - [[http://osashimix.hatenablog.com/entry/2019/02/17/201742][【仕事関連】Asset Allocation Model を R で組んでみた。@東京の投資顧問会社で働く社会人が研究に没頭するブログ]]
 - [[http://grg.hatenablog.com/entry/2017/03/12/233826][S&P500と日経225の時系列分析（DCCモデル・多変量GARCH）@GRGと金融工学・統計解析]]
 - [[http://grg.hatenablog.com/entry/2017/03/13/101234][コピュラとは（時系列分析・DCDモデルの前準備として）@GRGと金融工学・統計解析]]
 - [[http://grg.hatenablog.com/entry/2017/03/19/001059][S&P500と日経225の時系列分析（コピュラ ＆ DCDモデル）@GRGと金融工学・統計解析]]
-
 - [[https://www.r-bloggers.com/introduction-to-asset-allocation/][Introduction to Asset Allocation@R-bloggers]]
-
 - [[https://stackoverflow.com/questions/34636402/using-covariance-matrix-for-portfolio-optimization-in-r][Using Covariance matrix for Portfolio Optimization in R@stackoverflow]]
-* TODO [0/4]
-** TODO Regime を盛り込む
-** TODO lookback period を恣意的に決めない方法
+
+** TODO [0/4]
+*** TODO Regime を盛り込む
+*** TODO lookback period を恣意的に決めない方法
 - Half Life
   https://gestaltu.com/2014/03/half-life-of-optimal-lookback-horizon.html/
   https://seekingalpha.com/article/4043600-testing-dynamic-lookback-period-simple-momentum-trading-model
 
 - Regime
 
-** TODO 現実的な手数料率の計算
-** TODO いろいろなパフォーマンス指標
+*** TODO 現実的な手数料率の計算
+*** TODO いろいろなパフォーマンス指標
 - CAPM

@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 
 library("ProjectTemplate")
 setwd(here::here())
@@ -26,20 +27,17 @@ fits_multi_garch <- function(xts_data, model = "eGARCH", order = c(1, 1), dist =
   list(specs = specs, fits = fits)
 }
 
-fit_mgarch <- function(xts_data, spec, ..., model = "dcc", fit = NULL, timeout = 60) {
+fit_mgarch <- function(xts_data, spec, ..., model = "dcc", fit = NULL, solver = "solnp", timeout = 60) {
 
   ## Error in solve.default(A) :
   ##   system is computationally singular: reciprocal condition number = 1.15485e-17
   ## https://stackoverflow.com/questions/50928796/system-is-computationally-singular-reciprocal-condition-number-in-r
   ## https://stackoverflow.com/questions/57609790/dcc-model-estimation-with-t-student-distribution
-
-  ## In addition: Warning messages:
-  ## 1: In .egarchfit(spec = spec, data = data, out.sample = out.sample,  :
-  ## ugarchfit-->warning: solver failer to converge.
+  ## https://quant.stackexchange.com/questions/7260/r-arma-garch-rugarch-package-doesnt-always-converge
 
   tryCatch({
     withTimeout({
-      args <- list(spec = spec, data = xts_data, solver = "solnp",
+      args <- list(spec = spec, data = xts_data, solver = solver,
                    fit = fit, fit.control = list(...))
       switch(model,
         "dcc" = do.call(dccfit, args),
@@ -53,7 +51,16 @@ fit_dcc_mvnorm <- function(xts_data) {
   uspec <- get_ugarch_spec("eGARCH", c(1, 1), "norm")
   mspec <- dccspec(uspec = multispec(replicate(ncol(xts_data), uspec)),
                    dccOrder = c(1,1), distribution = "mvnorm")
-  fit_mgarch(xts_data, mspec, model = "dcc")
+  ## fit_mgarch(xts_data, mspec, model = "dcc")
+
+  ## Iterate solvers till suceeded
+  solvers <- c("solnp", "nlminb", "gosolnp", "lbfgs")
+  for (solver in solvers) {
+    print(solver)
+    fit <- fit_mgarch(xts_data, mspec, model = "dcc", solver = solver)
+    if (class(fit) == "DCCfit") break
+  }
+  fit
 }
 
 fit_dcc_mvt <- function(xts_data, max_iters = 5) {
@@ -71,7 +78,7 @@ fit_dcc_mvt <- function(xts_data, max_iters = 5) {
   fits <- list()
   iter <- 1
 
-  while (length(fits) < 2 && iter <= max_iters) {
+  while (length(fits) < 3 && iter <= max_iters) {
     uspec <- get_ugarch_spec("eGARCH", c(1, 1), "std", shape = shape)
     mspec <- dccspec(uspec = multispec(replicate(ncol(xts_data), uspec)),
                      dccOrder = c(1,1), distribution = "mvt")
@@ -117,18 +124,21 @@ fit <- function(target) {
 }
 
 
-if (exists("fits", mode = "list")) {
-  ## Subset params by already fitted rows
-  target <- anti_join(params, fits)
-  if (nrow(target) > 0) {
-    fitted <- fit(target)
-    fits <- bind_rows(fits, fitted)
-  }
+## if (exists("fits", mode = "list")) {
+##   ## Subset params by already fitted rows
+##   target <- anti_join(params, fits)
+##   if (nrow(target) > 0) {
+##     fitted <- fit(target)
+##     fits <- bind_rows(fits, fitted)
+##   }
 
-} else {
-  target <- params
-  fits <- fit(target)
-}
+## } else {
+##   target <- params
+##   fits <- fit(target)
+## }
+
+target <- params
+fits <- fit(target)
 
 
 ## TODO use bucher to reduce size

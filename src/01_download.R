@@ -1,3 +1,5 @@
+#!/usr/bin/env Rscript
+
 library("ProjectTemplate")
 setwd(here::here())
 load.project()
